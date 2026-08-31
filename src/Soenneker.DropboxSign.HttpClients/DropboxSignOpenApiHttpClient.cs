@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Soenneker.Dtos.HttpClientOptions;
 using Soenneker.Extensions.Configuration;
@@ -16,6 +17,7 @@ public sealed class DropboxSignOpenApiHttpClient : IDropboxSignOpenApiHttpClient
 {
     private readonly IHttpClientCache _httpClientCache;
     private readonly IConfiguration _config;
+    private readonly string _cacheKey = $"{nameof(DropboxSignOpenApiHttpClient)}:{Guid.NewGuid():N}";
 
     private const string _prodBaseUrl = "https://api.hellosign.com/v3";
 
@@ -27,12 +29,14 @@ public sealed class DropboxSignOpenApiHttpClient : IDropboxSignOpenApiHttpClient
 
     public ValueTask<HttpClient> Get(CancellationToken cancellationToken = default)
     {
-        return _httpClientCache.Get(nameof(DropboxSignOpenApiHttpClient), (config: _config, baseUrl: _config["DropboxSign:ClientBaseUrl"] ?? _prodBaseUrl), static state =>
+        return _httpClientCache.Get(_cacheKey, (config: _config, baseUrl: _config["DropboxSign:ClientBaseUrl"] ?? _prodBaseUrl), static state =>
         {
             var apiKey = state.config.GetValueStrict<string>("DropboxSign:ApiKey");
-            string authHeaderName = state.config["DropboxSign:AuthHeaderName"] ?? "Bearer {token}";
-            string authHeaderValueTemplate = state.config["DropboxSign:AuthHeaderValueTemplate"] ?? "{token}";
-            string authHeaderValue = authHeaderValueTemplate.Replace("{token}", apiKey, StringComparison.Ordinal);
+            string authHeaderName = state.config["DropboxSign:AuthHeaderName"] ?? "Authorization";
+            string? authHeaderValueTemplate = state.config["DropboxSign:AuthHeaderValueTemplate"];
+            string authHeaderValue = authHeaderValueTemplate is null
+                ? $"Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{apiKey}:"))}"
+                : authHeaderValueTemplate.Replace("{token}", apiKey, StringComparison.Ordinal);
 
             return new HttpClientOptions
             {
@@ -45,20 +49,13 @@ public sealed class DropboxSignOpenApiHttpClient : IDropboxSignOpenApiHttpClient
         }, cancellationToken);
     }
 
-    /// <summary>
-    /// Releases resources used by the current instance.
-    /// </summary>
     public void Dispose()
     {
-        _httpClientCache.RemoveSync(nameof(DropboxSignOpenApiHttpClient));
+        _httpClientCache.RemoveSync(_cacheKey);
     }
 
-    /// <summary>
-    /// Asynchronously releases resources used by the current instance.
-    /// </summary>
-    /// <returns>A task that represents the asynchronous operation.</returns>
     public ValueTask DisposeAsync()
     {
-        return _httpClientCache.Remove(nameof(DropboxSignOpenApiHttpClient));
+        return _httpClientCache.Remove(_cacheKey);
     }
 }
