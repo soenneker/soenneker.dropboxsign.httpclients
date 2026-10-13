@@ -31,7 +31,7 @@ public sealed class DropboxSignOpenApiHttpClient : IDropboxSignOpenApiHttpClient
     {
         return _httpClientCache.Get(_cacheKey, (config: _config, baseUrl: _config["DropboxSign:ClientBaseUrl"] ?? _prodBaseUrl), static state =>
         {
-            var apiKey = state.config.GetValueStrict<string>("DropboxSign:ApiKey");
+            var apiKey = state.config.GetStringStrict("DropboxSign:ApiKey");
             string authHeaderName = state.config["DropboxSign:AuthHeaderName"] ?? "Authorization";
             string? authHeaderValueTemplate = state.config["DropboxSign:AuthHeaderValueTemplate"];
             string authHeaderValue = authHeaderValueTemplate is null
